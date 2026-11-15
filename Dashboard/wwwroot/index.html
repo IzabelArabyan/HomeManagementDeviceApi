@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home Management – Device Dashboard</title>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --card: #ffffff;
+            --text: #1d2433;
+            --muted: #6b7385;
+            --border: #e2e6ee;
+            --online: #1f9d55;
+            --online-bg: #e3f6eb;
+            --offline: #d64545;
+            --offline-bg: #fbe7e7;
+            --unknown: #8a8f9c;
+            --unknown-bg: #eef0f4;
+            --accent: #2f5bea;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px 32px;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 { margin: 0; font-size: 22px; }
+        header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+        main { max-width: 1200px; margin: 0 auto; padding: 24px 32px 48px; }
+
+        button {
+            font: inherit;
+            border: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 8px;
+            padding: 8px 14px;
+            cursor: pointer;
+        }
+        button:hover { border-color: var(--accent); color: var(--accent); }
+        button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        button.primary:hover { opacity: .9; color: #fff; }
+        button.link { border: none; background: none; color: var(--offline); padding: 4px 6px; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px;
+        }
+        .stat .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+        .stat .value { font-size: 34px; font-weight: 600; margin-top: 6px; }
+        .stat.online .value { color: var(--online); }
+        .stat.offline .value { color: var(--offline); }
+
+        .bar { height: 8px; background: var(--offline-bg); border-radius: 4px; overflow: hidden; margin-top: 12px; }
+        .bar > div { height: 100%; background: var(--online); width: 0; transition: width .4s; }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .panel h2 { font-size: 16px; margin: 0; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { text-align: left; padding: 12px 20px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+        tr:last-child td { border-bottom: none; }
+        td .small { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .pill.Online { color: var(--online); background: var(--online-bg); }
+        .pill.Offline { color: var(--offline); background: var(--offline-bg); }
+        .pill.Unknown { color: var(--unknown); background: var(--unknown-bg); }
+
+        .chip {
+            display: inline-block;
+            font-size: 11px;
+            background: var(--unknown-bg);
+            border-radius: 4px;
+            padding: 2px 6px;
+            margin: 0 4px 4px 0;
+        }
+
+        .error { color: var(--offline); font-size: 12px; margin-top: 2px; }
+
+        form.add { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 20px; }
+        form.add input {
+            font: inherit;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-width: 200px;
+            flex: 1;
+        }
+        #formMessage { padding: 0 20px 16px; font-size: 13px; color: var(--offline); }
+        #formMessage:empty { display: none; }
+
+        .banner {
+            display: none;
+            background: var(--offline-bg);
+            color: var(--offline);
+            border: 1px solid var(--offline);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+        }
+
+        .empty { padding: 24px 20px; color: var(--muted); }
+    </style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>Device Monitoring Dashboard</h1>
+        <div class="sub" id="updated">Loading…</div>
+    </div>
+    <button class="primary" id="refreshButton">Refresh now</button>
+</header>
+
+<main>
+    <div class="banner" id="banner">Can't reach the dashboard API. Retrying…</div>
+
+    <section class="stats">
+        <div class="stat online">
+            <div class="label">Online devices</div>
+            <div class="value" id="online">–</div>
+            <div class="bar"><div id="onlineBar"></div></div>
+        </div>
+        <div class="stat offline">
+            <div class="label">Offline devices</div>
+            <div class="value" id="offline">–</div>
+        </div>
+        <div class="stat">
+            <div class="label">Total devices</div>
+            <div class="value" id="total">–</div>
+        </div>
+        <div class="stat">
+            <div class="label">Avg temperature</div>
+            <div class="value" id="avgTemp">–</div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Devices</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>Status</th>
+                <th>Device</th>
+                <th>Uptime</th>
+                <th>Temperature</th>
+                <th>Response</th>
+                <th>Last seen</th>
+                <th>Actions</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody id="devices"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>No devices yet. Add one below.</div>
+    </section>
+
+    <section class="panel">
+        <h2>Connect a device</h2>
+        <form class="add" id="addForm">
+            <input id="name" placeholder="Name, e.g. Device3" required />
+            <input id="address" placeholder="Address, e.g. http://localhost:1239" required />
+            <button class="primary" type="submit">Add device</button>
+        </form>
+        <div id="formMessage"></div>
+    </section>
+</main>
+
+<script>
+    const REFRESH_EVERY_MS = 3000;
+
+    const $ = id => document.getElementById(id);
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
+    function formatUptime(seconds) {
+        if (seconds == null) return "n/a";
+        const d = Math.floor(seconds / 86400);
+        const h = Math.floor((seconds % 86400) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (d > 0) return `${d}d ${h}h ${m}m`;
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m ${seconds % 60}s`;
+    }
+
+    function formatAgo(timestamp) {
+        if (!timestamp) return "never";
+        const seconds = Math.max(0, Math.round((Date.now() - new Date(timestamp)) / 1000));
+        if (seconds < 5) return "just now";
+        if (seconds < 60) return `${seconds}s ago`;
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+        return new Date(timestamp).toLocaleString();
+    }
+
+    function render(summary) {
+        $("online").textContent = summary.onlineDevices;
+        $("offline").textContent = summary.offlineDevices;
+        $("total").textContent = summary.totalDevices;
+        $("avgTemp").textContent = summary.averageTemperature == null ? "n/a" : `${summary.averageTemperature} °C`;
+        $("onlineBar").style.width = summary.totalDevices
+            ? `${(summary.onlineDevices / summary.totalDevices) * 100}%`
+            : "0";
+        $("updated").textContent =
+            `${summary.onlineDevices} of ${summary.totalDevices} devices online · updated ${new Date(summary.generatedAt).toLocaleTimeString()}`;
+
+        $("empty").hidden = summary.devices.length > 0;
+        $("devices").innerHTML = summary.devices.map(d => `
+            <tr>
+                <td><span class="pill ${escapeHtml(d.status)}">${escapeHtml(d.status)}</span></td>
+                <td>
+                    <strong>${escapeHtml(d.name)}</strong>
+                    ${d.reportedName && d.reportedName !== d.name ? `<div class="small">reports as “${escapeHtml(d.reportedName)}”</div>` : ""}
+                    <div class="small">${escapeHtml(d.address)}</div>
+                    ${d.error ? `<div class="error">${escapeHtml(d.error)}</div>` : ""}
+                </td>
+                <td>${d.status === "Online" ? formatUptime(d.uptimeSeconds) : "–"}</td>
+                <td>${d.status === "Online" ? (d.temperature == null ? "n/a" : `${d.temperature} °C`) : "–"}</td>
+                <td>${d.responseTimeMs == null ? "–" : `${d.responseTimeMs} ms`}</td>
+                <td>${formatAgo(d.lastSeen)}</td>
+                <td>${d.actions.map(a => `<span class="chip">${escapeHtml(a)}</span>`).join("") || "–"}</td>
+                <td><button class="link" data-remove="${escapeHtml(d.name)}">Remove</button></td>
+            </tr>`).join("");
+    }
+
+    async function load(method = "GET", url = "/api/dashboard") {
+        try {
+            const response = await fetch(url, { method });
+            if (!response.ok) throw new Error(response.statusText);
+            render(await response.json());
+            $("banner").style.display = "none";
+        } catch {
+            $("banner").style.display = "block";
+        }
+    }
+
+    $("refreshButton").addEventListener("click", () => load("POST", "/api/refresh"));
+
+    $("devices").addEventListener("click", async event => {
+        const name = event.target.dataset.remove;
+        if (!name) return;
+        await fetch(`/api/devices/${encodeURIComponent(name)}`, { method: "DELETE" });
+        load();
+    });
+
+    $("addForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        $("formMessage").textContent = "";
+        const response = await fetch("/api/devices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: $("name").value, address: $("address").value })
+        });
+        if (response.ok) {
+            $("addForm").reset();
+            load();
+        } else {
+            const body = await response.json().catch(() => ({}));
+            $("formMessage").textContent = body.error ?? "Could not add the device.";
+        }
+    });
+
+    load();
+    setInterval(() => load(), REFRESH_EVERY_MS);
+</script>
+</body>
+</html>
